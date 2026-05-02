@@ -1,0 +1,123 @@
+---
+title: "01 – Andmete laadimine ja esmane puhastamine"
+author: "Evelin Roasto"
+date: "`r Sys.Date()`"
+output:
+  html_notebook:
+    toc: true
+    toc_float: true
+    theme: flatly
+---
+
+# Eesmärk
+
+Selles skriptis:
+
+1. Laeme sisse toored SHARE laine 9 andmed (`data_raw/harjutusandmed (1).csv`)
+2. Asendame puuduvate väärtuste koodid (`-9`) `NA`-ga
+3. Teeme esmase ülevaate muutujatest
+4. Salvestame puhastatud andmed (`data_processed/andmed_puhas.csv`)
+
+---
+
+# 1. Pakettide laadimine
+
+```{r paketid, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(skimr)
+library(janitor)
+```
+
+---
+
+# 2. Andmete laadimine
+
+```{r laadimine}
+andmed_toor <- read_csv(
+  here::here("data_raw", "harjutusandmed (1).csv"),
+  show_col_types = FALSE
+)
+
+cat("Ridu:", nrow(andmed_toor), "\n")
+cat("Veerge:", ncol(andmed_toor), "\n")
+```
+
+---
+
+# 3. -9 asendamine NA-ga
+
+```{r puhastamine}
+andmed_puhas <- andmed_toor |>
+  mutate(across(where(is.numeric), ~ na_if(.x, -9)))
+
+# Kontrolli: mitu -9 väärtust asendati
+n_asendatud <- sum(andmed_toor == -9, na.rm = TRUE)
+cat("Asendatud -9 väärtuste arv:", n_asendatud, "\n")
+```
+
+---
+
+# 4. Esmane ülevaade muutujatest
+
+## 4.1 Andmete struktuur
+
+```{r struktuur}
+glimpse(andmed_puhas)
+```
+
+## 4.2 Kokkuvõttev statistika
+
+```{r kokkuvote}
+skim(andmed_puhas)
+```
+
+## 4.3 Puuduvate väärtuste arv muutujati
+
+```{r puuduvad}
+andmed_puhas |>
+  summarise(across(everything(), ~ sum(is.na(.)))) |>
+  pivot_longer(everything(),
+               names_to  = "muutuja",
+               values_to = "puuduvad_n") |>
+  mutate(puuduvad_pct = round(puuduvad_n / nrow(andmed_puhas) * 100, 1)) |>
+  arrange(desc(puuduvad_n)) |>
+  print(n = Inf)
+```
+
+## 4.4 Soo ja haridustaseme jaotus
+
+```{r kategooriad}
+# Sugu (1 = mees, 2 = naine)
+cat("--- Sugu ---\n")
+table(andmed_puhas$gender, useNA = "ifany") |> print()
+
+# Haridustase (ISCED 0–6)
+cat("\n--- Haridustase (ISCED) ---\n")
+table(andmed_puhas$ed, useNA = "ifany") |> print()
+```
+
+## 4.5 Kognitiivsete skooride jaotus
+
+```{r kognitsioon}
+andmed_puhas |>
+  select(cfr, cfv) |>
+  summary()
+```
+
+---
+
+# 5. Puhastatud andmete salvestamine
+
+```{r salvestamine}
+write_csv(
+  andmed_puhas,
+  here::here("data_processed", "andmed_puhas.csv")
+)
+
+cat("Salvestatud:", here::here("data_processed", "andmed_puhas.csv"), "\n")
+cat("Ridu:", nrow(andmed_puhas), "| Veerge:", ncol(andmed_puhas), "\n")
+```
+
+---
+
+*Andmed: SHARE laine 9 (2021–2022), Eesti osalejad.*
